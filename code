@@ -1,0 +1,55 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+
+"""
+extract_pdf_images.py
+
+遍歷指定資料夾中的所有 PDF，將內含的圖片以原始畫質匯出到指定輸出資料夾。
+依賴：PyMuPDF（fitz）。安裝方式：pip install PyMuPDF
+"""
+
+import os
+from pathlib import Path
+import fitz  # PyMuPDF
+
+def extract_images_from_pdf(pdf_path: Path, output_dir: Path):
+    """
+    從單一 PDF 檔中擷取所有圖片，並存成 PNG 檔。
+    自動將 CMYK 或帶 Alpha channel 的圖轉成 RGB，避免不支援的色彩空間錯誤。
+    """
+    doc = fitz.open(pdf_path)
+    prefix = pdf_path.stem  # 檔名（不含副檔名）
+    for page_index in range(len(doc)):
+        page = doc[page_index]
+        image_list = page.get_images(full=True)
+        for img_index, img_info in enumerate(image_list, start=1):
+            xref = img_info[0]
+            pix = fitz.Pixmap(doc, xref)
+            # 如果是 CMYK、Gray+Alpha、RGB+Alpha 等，全部轉成 RGB
+            if pix.n > 3:
+                pix = fitz.Pixmap(fitz.csRGB, pix)
+            img_filename = f"{prefix}_P{page_index+1:03d}_IMG{img_index:03d}.png"
+            out_path = output_dir / img_filename
+            try:
+                pix.save(out_path)
+                print(f"Saved image: {out_path}")
+            except ValueError as e:
+                print(f"❌ 無法儲存 {out_path.name}：{e}")
+            finally:
+                pix = None
+    doc.close()
+
+def main():
+    # 1) 設定來源資料夾（PDF 存放處）與輸出資料夾（圖片匯出處）
+    pdf_dir = Path(r"E:\最棒\伊織もえ\check")
+    output_dir = Path(r"E:\最棒\伊織もえ\pic")
+    output_dir.mkdir(parents=True, exist_ok=True)
+
+    # 2) 遍歷並處理
+    for pdf_file in pdf_dir.iterdir():
+        if pdf_file.suffix.lower() == ".pdf":
+            print(f"Processing {pdf_file.name} ...")
+            extract_images_from_pdf(pdf_file, output_dir)
+
+if __name__ == "__main__":
+    main()
